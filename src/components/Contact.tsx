@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/utils/supabase";
+import { sendEmail } from "@/actions/sendEmail";
 import { MapPin, Phone, Clock, Send } from "lucide-react";
 
 export default function Contact() {
@@ -21,7 +22,8 @@ export default function Contact() {
     e.preventDefault();
     setStatus("submitting");
 
-    const { error } = await supabase.from("messages").insert([
+    // 1. Save to Supabase
+    const { error: supabaseError } = await supabase.from("messages").insert([
       {
         name: formData.name,
         email: formData.email,
@@ -30,16 +32,30 @@ export default function Contact() {
       },
     ]);
 
-    if (error) {
-      // Safely extract the error message instead of an empty object
-      console.error("Error submitting form:", error.message || JSON.stringify(error));
+    if (supabaseError) {
+      console.error("Error saving to database:", supabaseError.message || JSON.stringify(supabaseError));
       setStatus("error");
-    } else {
-      setStatus("success");
-      setFormData({ name: "", email: "", phone: "", message: "" });
-      // Reset success message after 5 seconds
-      setTimeout(() => setStatus("idle"), 5000);
+      return;
+    } 
+
+    // 2. Send the Email Notification
+    const emailResult = await sendEmail({
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      message: formData.message,
+    });
+
+    if (emailResult.error) {
+      console.error("Error sending email:", emailResult.error);
+      setStatus("error");
+      return;
     }
+
+    // 3. Show Success
+    setStatus("success");
+    setFormData({ name: "", email: "", phone: "", message: "" });
+    setTimeout(() => setStatus("idle"), 5000);
   };
 
   return (
